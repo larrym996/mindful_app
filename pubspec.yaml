@@ -1,12 +1,13 @@
 name: mindful_app
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.1.1+1
 
 environment:
   sdk: ^3.11.3
 
 dependencies:
+  dart_snmp: ^3.0.1
   flutter:
     sdk: flutter
   flutter_launcher_icons: ^0.14.4

@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'package:mindful_app/data/quote.dart';
 import 'package:mindful_app/screens/quotes_list_screen.dart';
 import 'package:mindful_app/screens/settings_screen.dart';
+import 'dart:io';
+import 'package:dart_snmp/dart_snmp.dart';
 
 class QuoteScreen extends StatefulWidget {
   const QuoteScreen({super.key});
@@ -38,12 +40,45 @@ class _QuoteScreenState extends State<QuoteScreen> {
       }
   }
 
+    Future search() async {
+      for(var i = 1; i < 255; i++) {
+        String ip = '192.168.0.$i';
+        print(ip);
+        var target = InternetAddress(ip);
+        try {
+          var session = await Snmp.createSession(target, timeout: const Duration(milliseconds: 100));
+          var oid = Oid.fromString('1.3.6.1.2.1.1.1.0'); // sysDesc
+          var message = await session.get(oid);        
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: Text('SNMP Device'),
+                content: Text(message.pdu.varbinds[0].value, style: const TextStyle(fontSize: 16)),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('OK'),
+                  )
+                ],
+              );
+            });            
+          } catch (_) {
+          //print('No SNMP response from ${target.address}');
+        }
+        //closeSession``
+      }
+    }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mindful Quote'),
         actions: [
+          IconButton(onPressed: () {search(); setState((){} );}, icon: const Icon(Icons.search)),
           IconButton(onPressed: _gotoSettings, icon: const Icon(Icons.settings)),
           IconButton(onPressed: _gotoList, icon: const Icon(Icons.list)),
           IconButton(onPressed: () {fetchQuote(); setState((){} );}, icon: const Icon(Icons.refresh))
