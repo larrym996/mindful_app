@@ -66,5 +66,12 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>This app needs network access to find local Wi-Fi printers.</string>
+	<key>NSBonjourServices</key>
+	<array>
+  		<string>_http._tcp.</string>
+  		<string>_printer._tcp.</string>
+	</array>
 </dict>
 </plist>

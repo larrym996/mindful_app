@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:mindful_app/data/db_helper.dart';
@@ -7,6 +9,7 @@ import 'package:mindful_app/screens/quotes_list_screen.dart';
 import 'package:mindful_app/screens/settings_screen.dart';
 import 'dart:io';
 import 'package:dart_snmp/dart_snmp.dart';
+import 'package:multicast_dns/multicast_dns.dart';
 
 class QuoteScreen extends StatefulWidget {
   const QuoteScreen({super.key});
@@ -40,37 +43,54 @@ class _QuoteScreenState extends State<QuoteScreen> {
       }
   }
 
-    Future search() async {
-      for(var i = 1; i < 255; i++) {
-        String ip = '192.168.0.$i';
-        print(ip);
-        var target = InternetAddress(ip);
-        try {
-          var session = await Snmp.createSession(target, timeout: const Duration(milliseconds: 100));
-          var oid = Oid.fromString('1.3.6.1.2.1.1.1.0'); // sysDesc
-          var message = await session.get(oid);        
-          showDialog(
-            context: context,
-            builder: (context) {
-              return AlertDialog(
-                title: Text('SNMP Device'),
-                content: Text(message.pdu.varbinds[0].value, style: const TextStyle(fontSize: 16)),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text('OK'),
-                  )
-                ],
-              );
-            });            
-          } catch (_) {
-          //print('No SNMP response from ${target.address}');
+  Future<List<String>> search() async {
+      const String name = '_ipp._tcp.local'; //'_printer._tcp.local'; // Epson and HP answer to _ipp._tcp.local or _printer._tcp.local
+
+      List<String> uniqueNames = [];
+
+      List<String> retVal = List<String>.empty(growable: true);
+
+    for (int i = 0; i < 5; i++) 
+    {
+      String message = '';
+      MDnsClient client = MDnsClient();
+      // Start the client with default options.
+      await client.start();
+
+      try { 
+
+      // Get the PTR record for the service.
+      await for (final PtrResourceRecord ptr in client
+          .lookup<PtrResourceRecord>(ResourceRecordQuery.serverPointer(name))) {
+        // Use the domainName from the PTR record to get the SRV record,
+        // which will have the port and local hostname.
+        // Note that duplicate messages may come through, especially if any
+        // other mDNS queries are running elsewhere on the machine.
+        await for (final SrvResourceRecord srv in client.lookup<SrvResourceRecord>(
+            ResourceRecordQuery.service(ptr.domainName))) {
+
+          await for (final IPAddressResourceRecord ip in client.lookup<IPAddressResourceRecord>(
+              ResourceRecordQuery.addressIPv4(srv.target),) ) {          
+
+              if (!uniqueNames.contains(ptr.domainName)) {
+                uniqueNames.add(ptr.domainName);
+
+                message = 'Found Printer: ${ptr.domainName} at ${ip.address.address}:${srv.port}';                                           
+              }
+          }                           
+          client.stop();
+          }      
         }
-        //closeSession``
+      } catch (e) {
+          message = 'Error during mDNS discovery: $e';
       }
-    }
+
+      if(message.isNotEmpty) {
+        retVal.add(message);
+      }        
+    }     
+    return retVal;
+  } 
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +105,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
         ],
       ),
       body: FutureBuilder(
-        future: fetchQuote(),
+        future: search(),
         builder: (context, snapshot) {
            if(snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -95,26 +115,20 @@ class _QuoteScreenState extends State<QuoteScreen> {
           else if(!snapshot.hasData) {
             return const Center(child: Text('No quote available'));
           }
-          quote = snapshot.data as Quote;
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                quote.text,
-                style: const TextStyle(fontSize: 24, fontStyle: FontStyle.italic),
-                textAlign: TextAlign.center,
-              ),
-                Text(
-                quote.author,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              )],
-            ),
-          ),
-              );
+          List<String> messages = snapshot.data as List<String>;
+          if(messages.isEmpty) {
+            return const Center(child: Text('No printers found'));
+          }
+          else {
+            return ListView.builder(
+              itemCount: messages.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                  title: Text(messages[index]),
+                );
+              },
+            );
+          }
         }
       ),
       floatingActionButton: FloatingActionButton(
