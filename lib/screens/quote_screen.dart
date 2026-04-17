@@ -50,12 +50,29 @@ class _QuoteScreenState extends State<QuoteScreen> {
 
       List<String> retVal = List<String>.empty(growable: true);
 
-    for (int i = 0; i < 5; i++) 
-    {
+    //for (int i = 0; i < 5; i++) 
+    //{
       String message = '';
       MDnsClient client = MDnsClient();
       // Start the client with default options.
-      await client.start();
+      await client.start(
+        // The address to listen on (Default is InternetAddress.anyIPv4)
+        listenAddress: InternetAddress.anyIPv4,
+        
+        // The port to use for mDNS (Default is 5353)
+        mDnsPort: 5353,
+        
+        // A custom error handler for the lookup process
+        onError: (Object error, StackTrace stackTrace) {
+          retVal.add('mDNS Error: $error');
+        },
+        // Optional: Provide a custom network interface factory if you 
+        // want to bind to specific interfaces only.
+        interfacesFactory: (InternetAddressType type) => NetworkInterface.list(
+          type: type, 
+          includeLinkLocal: true,
+        ),
+      );
 
       try { 
 
@@ -88,7 +105,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
       if(message.isNotEmpty) {
         retVal.add(message);
       }        
-    }     
+    //}     
     return retVal;
   } 
 
