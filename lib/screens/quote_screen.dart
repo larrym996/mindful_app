@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +11,7 @@ import 'package:mindful_app/screens/settings_screen.dart';
 import 'dart:io';
 import 'package:dart_snmp/dart_snmp.dart';
 import 'package:multicast_dns/multicast_dns.dart';
+import 'package:nsd/nsd.dart';
 
 class QuoteScreen extends StatefulWidget {
   const QuoteScreen({super.key});
@@ -21,6 +23,10 @@ class QuoteScreen extends StatefulWidget {
 class _QuoteScreenState extends State<QuoteScreen> {
   String address = 'https://zenquotes.io/api/random';
   Quote quote = Quote(text: '', author: '');
+
+  List<String> seenPrinters = [];
+
+  List<String> printers = List<String>.empty(growable: true);
 
   @override
   void initState() {
@@ -43,70 +49,34 @@ class _QuoteScreenState extends State<QuoteScreen> {
       }
   }
 
-  Future<List<String>> search() async {
-      const String name = '_ipp._tcp.local'; //'_printer._tcp.local'; // Epson and HP answer to _ipp._tcp.local or _printer._tcp.local
+  Future search() async {
+      const String name = '_ipp._tcp'; // Epson and HP answer to _ipp._tcp.local or _printer._tcp.local
 
-      List<String> uniqueNames = [];
-
-      List<String> retVal = List<String>.empty(growable: true);
-
-    //for (int i = 0; i < 5; i++) 
-    //{
-      String message = '';
-      MDnsClient client = MDnsClient();
-      // Start the client with default options.
-      await client.start(
-        // The address to listen on (Default is InternetAddress.anyIPv4)
-        listenAddress: InternetAddress.anyIPv4,
-        
-        // The port to use for mDNS (Default is 5353)
-        mDnsPort: 5353,
-        
-        // A custom error handler for the lookup process
-        onError: (Object error, StackTrace stackTrace) {
-          retVal.add('mDNS Error: $error');
-        },
-        // Optional: Provide a custom network interface factory if you 
-        // want to bind to specific interfaces only.
-        interfacesFactory: (InternetAddressType type) => NetworkInterface.list(
-          type: type, 
-          includeLinkLocal: true,
-        ),
-      );
-
-      try { 
-
-      // Get the PTR record for the service.
-      await for (final PtrResourceRecord ptr in client
-          .lookup<PtrResourceRecord>(ResourceRecordQuery.serverPointer(name))) {
-        // Use the domainName from the PTR record to get the SRV record,
-        // which will have the port and local hostname.
-        // Note that duplicate messages may come through, especially if any
-        // other mDNS queries are running elsewhere on the machine.
-        await for (final SrvResourceRecord srv in client.lookup<SrvResourceRecord>(
-            ResourceRecordQuery.service(ptr.domainName))) {
-
-          await for (final IPAddressResourceRecord ip in client.lookup<IPAddressResourceRecord>(
-              ResourceRecordQuery.addressIPv4(srv.target),) ) {          
-
-              if (!uniqueNames.contains(ptr.domainName)) {
-                uniqueNames.add(ptr.domainName);
-
-                message = 'Found Printer: ${ptr.domainName} at ${ip.address.address}:${srv.port}';                                           
-              }
-          }                           
-          client.stop();
-          }      
+      final discovery = await startDiscovery(name);
+      discovery.addServiceListener((service, status) {
+      if (status == ServiceStatus.found) {
+        if (!seenPrinters.contains(service.name)) {
+          seenPrinters.add(service.name!);
+          printers.add('[FOUND] ${service.name}  Host: ${service.host} Port: ${service.port}');
+          // if (service.txt != null && service.txt!.isNotEmpty) {
+          //   print('  Metadata: ${service.txt}');
+          // }
+          //print('-----------------------------------------');
         }
-      } catch (e) {
-          message = 'Error during mDNS discovery: $e';
-      }
+      } 
+      // else if (status == ServiceStatus.lost) {
+      //   print('[LOST]  ${service.name}');
+      //   seenPrinters.remove(service.name);
+      //   print('-----------------------------------------');
+      // }
 
-      if(message.isNotEmpty) {
-        retVal.add(message);
-      }        
-    //}     
-    return retVal;
+        // Stop after 60 seconds
+        Timer(const Duration(seconds: 60), () async {
+          //print('\n[TIMEOUT] Stopping discovery after 60 seconds.');
+          await stopDiscovery(discovery);
+          //print('Discovery ended. You can close this application.\n');
+        });
+     });
   } 
 
   @override
@@ -129,19 +99,19 @@ class _QuoteScreenState extends State<QuoteScreen> {
           } else if(snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
-          else if(!snapshot.hasData) {
-            return const Center(child: Text('No quote available'));
-          }
-          List<String> messages = snapshot.data as List<String>;
-          if(messages.isEmpty) {
-            return const Center(child: Text('No printers found'));
+          // else if(!snapshot.hasData) {
+          //   return const Center(child: Text('No quote available'));
+          // }
+          //List<String> messages = snapshot.data as List<String>;
+          if(printers.isEmpty) {
+            return const Center(child: Text('Click the magnifying icon to find printers on your local network. It may take up to 60 seconds to find all printers.'));
           }
           else {
             return ListView.builder(
-              itemCount: messages.length,
+              itemCount: printers.length,
               itemBuilder: (context, index) {
                 return ListTile(
-                  title: Text(messages[index]),
+                  title: Text(printers[index]),
                 );
               },
             );

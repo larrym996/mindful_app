@@ -70,8 +70,7 @@
 	<string>This app needs network access to find local Wi-Fi printers.</string>
 	<key>NSBonjourServices</key>
 	<array>
-  		<string>_http._tcp.</string>
-  		<string>_printer._tcp.</string>
+  		<string>_ipp._tcp.</string>
 	</array>
 </dict>
 </plist>
