@@ -12,6 +12,7 @@ import 'dart:io';
 import 'package:dart_snmp/dart_snmp.dart';
 import 'package:multicast_dns/multicast_dns.dart';
 import 'package:nsd/nsd.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class QuoteScreen extends StatefulWidget {
   const QuoteScreen({super.key});
@@ -57,7 +58,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
       if (status == ServiceStatus.found) {
         if (!seenPrinters.contains(service.name)) {
           seenPrinters.add(service.name!);
-          printers.add('[FOUND] ${service.name}  Host: ${service.host} Port: ${service.port}');
+          printers.add('${service.name}');//  Host: ${service.host} Port: ${service.port}');
           // if (service.txt != null && service.txt!.isNotEmpty) {
           //   print('  Metadata: ${service.txt}');
           // }
@@ -72,12 +73,24 @@ class _QuoteScreenState extends State<QuoteScreen> {
 
         // Stop after 60 seconds
         Timer(const Duration(seconds: 60), () async {
+          try {
+            await stopDiscovery(discovery);
+          } catch (e) {
+            //print('Error stopping discovery: $e');
+          }
           //print('\n[TIMEOUT] Stopping discovery after 60 seconds.');
-          await stopDiscovery(discovery);
+          //await stopDiscovery(discovery);
           //print('Discovery ended. You can close this application.\n');
         });
      });
   } 
+
+    Future<void> _launchUrl(String amazonUrl) async {
+    final Uri url = Uri.parse('https://www.amazon.com/s?k=$amazonUrl');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      throw Exception('Could not launch $amazonUrl');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,17 +117,84 @@ class _QuoteScreenState extends State<QuoteScreen> {
           // }
           //List<String> messages = snapshot.data as List<String>;
           if(printers.isEmpty) {
-            return const Center(child: Text('Click the magnifying icon to find printers on your local network. It may take up to 60 seconds to find all printers.'));
+            return const Center(child: Text('Click the magnifying icon to find printers.', style: TextStyle(fontSize: 24, color: Colors.black54),));
           }
           else {
             return ListView.builder(
-              itemCount: printers.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  title: Text(printers[index]),
-                );
-              },
-            );
+            //   itemCount: printers.length,
+            //   itemBuilder: (context, index) {
+            //     return ListTile(
+            //       title: Text(printers[index]),
+            //       // ignore: prefer_interpolation_to_compose_strings
+            //       subtitle: Text('Buy supplies on Amazon for "' + printers[index] +'" (Commissions earned)'),
+            //       trailing: const Icon(Icons.open_in_new_rounded, color: Colors.blue, size: 20,),
+            //       onTap: () => _launchUrl(printers[index])
+            //     );
+            //   },
+            // );
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+            itemCount: printers.length,
+            itemBuilder: (context, index) {
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.only(bottom: 16),
+                child: InkWell(
+                  onTap: () => _launchUrl(printers[index]),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.print_rounded,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  printers[index],
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Buy supplies on Amazon (Commissions earned)',
+                                  style: const TextStyle(
+                                    color: Colors.black54,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.open_in_new_rounded,
+                            color: Colors.white24,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+          );
           }
         }
       ),
