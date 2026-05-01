@@ -1,6 +1,6 @@
 {
-    "name": "mindful_app",
-    "short_name": "mindful_app",
+    "name": "PrinterZap",
+    "short_name": "PrinterZap",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
